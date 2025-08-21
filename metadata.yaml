@@ -2,4 +2,4 @@ name: astrbot_plugin_Mirecraft_motd
 desc: 基于Astrbot的motd探测服务器的插件
 version: v1.6.0
 author: ChuranNeko
-repo: https://github.com/ChuranNeko/astrbot_plugin_Mirecraft_motd
+repo: https://github.com/ChuranNeko/astrbot_plugin_minecraft_motd
