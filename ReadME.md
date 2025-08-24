@@ -2,7 +2,7 @@
 
 ![Python Versions](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10-blue)
 ![License](https://img.shields.io/github/license/ChuranNeko/astrbot_plugin_Minecraft_motd)
-![Version](https://img.shields.io/badge/version-1.6.0-green)
+![Version](https://img.shields.io/badge/version-1.7.0-green)
 
 ## 🌟 功能简介
 
