@@ -17,7 +17,7 @@ from mcstatus import JavaServer, BedrockServer
 from PIL import Image, ImageDraw, ImageFont
 
 
-@register("astrbot_minecraft_motd", "ChuranNeko", "Minecraft 服务器 MOTD 状态图", "1.6.0")
+@register("astrbot_minecraft_motd", "ChuranNeko", "Minecraft 服务器 MOTD 状态图", "1.7.0")
 class MinecraftMOTDPlugin(Star):
     """
     Minecraft 服务器 MOTD 插件
