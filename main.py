@@ -5,19 +5,19 @@ from astrbot.api import logger
 
 import asyncio
 import re
-import base64
-from io import BytesIO
 from typing import Optional, List, Tuple, Dict
 import os
 import tempfile
+from pathlib import Path
 
 import validators
 import dns.resolver
 from mcstatus import JavaServer, BedrockServer
-from PIL import Image, ImageDraw, ImageFont
+from jinja2 import Template
+from playwright.async_api import async_playwright
 
 
-@register("astrbot_minecraft_motd", "ChuranNeko", "Minecraft 服务器 MOTD 状态图", "1.7.0")
+@register("astrbot_minecraft_motd", "ChuranNeko", "Minecraft 服务器 MOTD 状态图", "2.0.0")
 class MinecraftMOTDPlugin(Star):
     """
     Minecraft 服务器 MOTD 插件
@@ -166,17 +166,13 @@ class MinecraftMOTDPlugin(Star):
 
         # 处理探测结果
         for status_info in status_infos:
-            # 渲染图片和文本
-            img_bytes, status_text = await self._render_status_card(status_info)
-            file_path = self._save_temp_image(img_bytes)
+            # 渲染图片和文本（使用HTML渲染）
+            image_path, status_text = await self._render_status_card(status_info)
 
-            logger.info(f"发送 Minecraft MOTD 本地渲染图片: {file_path}")
-
-            # 异步清理临时文件
-            asyncio.create_task(self._cleanup_file(file_path))
+            logger.info(f"发送 Minecraft MOTD HTML渲染图片: {image_path}")
 
             # 图片和文字一并发送
-            yield event.chain_result([Comp.Image(file_path), Comp.Plain(status_text)])
+            yield event.chain_result([Comp.Image(image_path), Comp.Plain(status_text)])
         return
 
     async def initialize(self):
@@ -361,6 +357,46 @@ class MinecraftMOTDPlugin(Star):
 
     async def terminate(self):
         logger.info("MinecraftMOTDPlugin 已停止")
+    
+    async def _render_html_to_image(self, html_content: str, output_path: str) -> str:
+        """
+        使用 Playwright 将 HTML 渲染为图片
+        
+        Args:
+            html_content: HTML 内容
+            output_path: 输出图片路径
+            
+        Returns:
+            生成的图片路径
+        """
+        try:
+            async with async_playwright() as p:
+                # 启动浏览器（使用 chromium）
+                browser = await p.chromium.launch(headless=True)
+                page = await browser.new_page(viewport={'width': 900, 'height': 600})
+                
+                # 设置 HTML 内容
+                await page.set_content(html_content, wait_until='networkidle')
+                
+                # 等待一下确保渲染完成
+                await asyncio.sleep(0.5)
+                
+                # 截图
+                await page.screenshot(
+                    path=output_path,
+                    type='jpeg',
+                    quality=90,
+                    full_page=True
+                )
+                
+                await browser.close()
+                
+                logger.info(f"HTML 渲染成功: {output_path}")
+                return output_path
+                
+        except Exception as e:
+            logger.error(f"HTML 渲染失败: {e}")
+            raise
 
     async def _probe_java(self, host: str, port: int, timeout_sec: float = 5.0) -> Optional[dict]:
         """
@@ -572,69 +608,57 @@ class MinecraftMOTDPlugin(Star):
             logger.warning(f"Bedrock 探测失败: {host}:{port} - {type(e).__name__}: {e}")
             return None
 
-    def _load_font(self, size: int) -> ImageFont.ImageFont:
-        """
-        加载 Minecraft 字体
-        
-        Args:
-            size: 字体大小
-            
-        Returns:
-            字体对象
-        """
-        # 优先使用插件自带的 Minecraft 字体
-        plugin_dir = os.path.dirname(os.path.abspath(__file__))
-        minecraft_font = os.path.join(plugin_dir, "font", "Minecraft_AE.ttf")
-        
-        try:
-            if os.path.exists(minecraft_font):
-                return ImageFont.truetype(minecraft_font, size)
-        except Exception as e:
-            logger.info(f"加载 Minecraft 字体失败: {e}")
-        
-        # 备选方案：使用默认字体
-        try:
-            return ImageFont.load_default()
-        except Exception:
-            return ImageFont.load_default()
-
-    async def _render_status_card(self, info: dict) -> Tuple[bytes, str]:
-        """渲染服务器状态卡片"""
-        # 准备画布
-        width, height = 900, 300
-        bg_color = (28, 30, 34)
-        fg_primary = (235, 235, 235)
-        fg_secondary = (170, 170, 170)
-        accent = (88, 166, 255)
-
-        image = Image.new("RGBA", (width, height), bg_color)
-        draw = ImageDraw.Draw(image)
-
-        # 字体
-        font_title = self._load_font(28)
-        font_body = self._load_font(20)
-        font_small = self._load_font(16)
-
-        padding = 20
-        x = padding
-        y = padding
-
-        # 服务器图标处理
-        icon_loaded = self._load_server_icon(image, info, x, y)
-        x_text = x + 96 + 16 if icon_loaded else x
-
-        # 渲染内容
-        self._render_content(draw, info, x_text, y, font_title, font_body, font_small, 
-                           fg_primary, fg_secondary, accent, width, padding)
-
-        # 导出字节
-        buf = BytesIO()
-        image.save(buf, format="PNG", optimize=True)
-        img_bytes = buf.getvalue()
-
-        # 文本摘要（优化格式）
+    async def _render_status_card(self, info: dict) -> Tuple[str, str]:
+        """渲染服务器状态卡片，使用HTML渲染"""
+        # 清理MOTD文本
         motd = self._clean_motd_text(info.get("motd", "") or "")
         
+        # 准备模板数据
+        template_data = {
+            'host': info['host'],
+            'port': info['port'],
+            'edition': info['edition'],
+            'latency_ms': info['latency_ms'],
+            'protocol': info.get('protocol'),
+            'version_name': info.get('version_name'),
+            'players_online': info['players_online'],
+            'players_max': info['players_max'],
+            'player_names': info.get('player_names', [])[:10],  # 最多显示10个玩家
+            'motd': motd,
+            'favicon_url': info.get('favicon_data_uri'),
+            'srv_resolved': info.get('srv_resolved', False),
+            'original_domain': info.get('original_domain', '')
+        }
+        
+        # 获取模板文件路径
+        plugin_dir = os.path.dirname(os.path.abspath(__file__))
+        template_path = os.path.join(plugin_dir, "templates", "server_status.html")
+        
+        # 使用自定义 HTML 渲染
+        try:
+            # 读取模板文件
+            with open(template_path, 'r', encoding='utf-8') as f:
+                template_content = f.read()
+            
+            # 使用 Jinja2 渲染模板
+            template = Template(template_content)
+            html_content = template.render(**template_data)
+            
+            # 生成临时输出文件路径
+            temp_dir = tempfile.gettempdir()
+            timestamp = int(asyncio.get_event_loop().time())
+            output_filename = f"motd_{timestamp}_{info['host'].replace('.', '_')}.jpg"
+            image_path = os.path.join(temp_dir, output_filename)
+            
+            # 渲染 HTML 到图片
+            image_path = await self._render_html_to_image(html_content, image_path)
+            
+            logger.info(f"自定义HTML渲染成功: {image_path}")
+        except Exception as e:
+            logger.error(f"自定义HTML渲染失败: {e}")
+            raise
+        
+        # 构建文本摘要
         # 处理过长的 MOTD，限制显示长度
         if len(motd) > 100:
             motd = motd[:97] + "..."
@@ -663,122 +687,7 @@ class MinecraftMOTDPlugin(Star):
             f"👧玩家在线: {player_info}"
         )
 
-        return img_bytes, status_text
-
-    def _load_server_icon(self, image: Image.Image, info: dict, x: int, y: int) -> bool:
-        """加载服务器图标，返回是否成功"""
-        # 尝试加载服务器 favicon
-        if info.get("favicon_data_uri"):
-            try:
-                data_uri: str = info["favicon_data_uri"]
-                if data_uri.startswith("data:"):
-                    b64 = data_uri.split(",", 1)[1]
-                else:
-                    b64 = data_uri
-                icon = Image.open(BytesIO(base64.b64decode(b64))).convert("RGBA")
-                icon = icon.resize((96, 96))
-                image.paste(icon, (x, y), icon)
-                return True
-            except Exception as e:
-                logger.info(f"加载服务器 favicon 失败: {e}")
-        
-        # 如果没有 favicon，尝试加载默认 Minecraft logo
-        try:
-            # 尝试从网络加载默认 logo
-            import requests
-            
-            default_logo_url = "https://patchwiki.biligame.com/images/mc/5/53/smk9nesqj6bkd5qyd718xxhocic6et0.png"
-            response = requests.get(default_logo_url, timeout=10)
-            if response.status_code == 200:
-                default_icon = Image.open(BytesIO(response.content)).convert("RGBA")
-                default_icon = default_icon.resize((96, 96))
-                image.paste(default_icon, (x, y), default_icon)
-                logger.info("使用默认 Minecraft logo")
-                return True
-        except Exception as e:
-            logger.info(f"加载默认 logo 失败: {e}")
-        
-        return False
-
-    def _render_content(self, draw: ImageDraw.ImageDraw, info: dict, x_text: int, y: int,
-                      font_title: ImageFont.ImageFont, font_body: ImageFont.ImageFont, 
-                      font_small: ImageFont.ImageFont, fg_primary: tuple, fg_secondary: tuple, 
-                      accent: tuple, width: int, padding: int):
-        """渲染内容区域"""
-        # 标题行：host:port 与 Edition 徽标
-        # 如果是通过 SRV 记录解析的，显示原始域名
-        if info.get('srv_resolved') and info.get('original_domain'):
-            title = f"{info['original_domain']}"
-        else:
-            title = f"{info['host']}:{info['port']}"
-        draw.text((x_text, y), title, font=font_title, fill=fg_primary)
-
-        edition_badge = f"{info['edition']}"
-        badge_w, badge_h = draw.textbbox((0, 0), edition_badge, font=font_small)[2:]
-        badge_x = x_text
-        badge_y = y + 34
-        # 徽标背景
-        draw.rounded_rectangle([badge_x, badge_y, badge_x + badge_w + 12, badge_y + badge_h + 8], radius=6, fill=accent)
-        draw.text((badge_x + 6, badge_y + 4), edition_badge, font=font_small, fill=(255, 255, 255))
-
-        # 第二行：延迟 / 协议 / 版本
-        y_info = badge_y + badge_h + 20
-        line2 = f"延迟: {info['latency_ms']} ms    协议: {info.get('protocol', '-') or '-'}    版本: {info.get('version_name', '-') or '-'}"
-        draw.text((x_text, y_info), line2, font=font_body, fill=fg_secondary)
-
-        # 第三行：在线人数
-        y_players = y_info + 28
-        players_line = f"在线: {info['players_online']} / {info['players_max']}"
-        draw.text((x_text, y_players), players_line, font=font_body, fill=fg_secondary)
-
-        # 玩家示例列表（Java 有 sample）
-        if info.get("player_names"):
-            sample_text = ", ".join(info["player_names"][:10])
-            draw.text((x_text, y_players + 26), f"在线玩家: {sample_text}", font=font_small, fill=fg_secondary)
-
-        # MOTD 描述（多行，先清洗颜色码与换行）
-        motd = self._clean_motd_text(info.get("motd", "") or "")
-        y_motd = y_players + 60
-        max_width = width - x_text - padding
-        for line in self._wrap_text(draw, motd, font_body, max_width):
-            draw.text((x_text, y_motd), line, font=font_body, fill=fg_primary)
-            y_motd += 26
-
-    def _wrap_text(self, draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, max_width: int) -> List[str]:
-        """
-        按指定宽度折行文本
-        
-        Args:
-            draw: PIL 绘图对象
-            text: 要折行的文本
-            font: 字体对象
-            max_width: 最大宽度
-            
-        Returns:
-            折行后的文本列表
-        """
-        if not text:
-            return []
-        text = text.replace("\r\n", "\n").replace("\r", "\n")
-        result_lines: List[str] = []
-        for paragraph in text.split("\n"):
-            if paragraph == "":
-                # 保留空行
-                result_lines.append("")
-                continue
-            current_line = ""
-            for ch in paragraph:
-                test_line = current_line + ch
-                # 仅测量单行文本宽度，避免包含换行符
-                if draw.textlength(test_line, font=font) <= max_width:
-                    current_line = test_line
-                else:
-                    if current_line:
-                        result_lines.append(current_line)
-                    current_line = ch
-            if current_line:
-                result_lines.append(current_line)
-        return result_lines
+        return image_path, status_text
 
     def _clean_motd_text(self, text) -> str:
         """
@@ -811,24 +720,3 @@ class MinecraftMOTDPlugin(Star):
             return re.sub(r"§.", "", text)
         except Exception:
             return text
-
-    def _save_temp_image(self, img_bytes: bytes) -> str:
-        """保存临时图片文件"""
-        try:
-            with tempfile.NamedTemporaryFile(prefix="motd_", suffix=".png", delete=False) as tmp:
-                tmp.write(img_bytes)
-                tmp.flush()
-                return tmp.name
-        except Exception as e:
-            logger.error(f"保存临时图片失败: {e}")
-            raise
-
-    async def _cleanup_file(self, path: str, delay_sec: float = 60.0):
-        """异步清理临时文件"""
-        try:
-            await asyncio.sleep(delay_sec)
-            if os.path.exists(path):
-                os.remove(path)
-                logger.info(f"临时文件已清理: {os.path.basename(path)}")
-        except Exception as e:
-            logger.warning(f"临时文件清理失败 {os.path.basename(path)}: {e}")

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft Server Status</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html {
+            width: 900px;
+            height: 600px;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', 'SimHei', Arial, sans-serif;
+            background: linear-gradient(135deg, #1c1e22 0%, #2d3139 100%);
+            padding: 20px;
+            width: 900px;
+            min-height: 600px;
+            margin: 0;
+        }
+        
+        .card {
+            background: linear-gradient(135deg, #252830 0%, #2d3139 100%);
+            border-radius: 16px;
+            padding: 24px;
+            width: 860px;
+            color: #ebebeb;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+        }
+        
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid rgba(88, 166, 255, 0.3);
+            padding-bottom: 16px;
+        }
+        
+        .server-icon {
+            width: 96px;
+            height: 96px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #58a6ff 0%, #3d7fc4 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+            flex-shrink: 0;
+            border: 2px solid rgba(88, 166, 255, 0.5);
+        }
+        
+        .server-icon img {
+            width: 100%;
+            height: 100%;
+            border-radius: 10px;
+            object-fit: cover;
+        }
+        
+        .server-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .server-title {
+            font-size: 26px;
+            font-weight: bold;
+            color: #ebebeb;
+            margin-bottom: 10px;
+            word-break: break-all;
+        }
+        
+        .badges {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .edition-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #58a6ff 0%, #3d7fc4 100%);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .status-online {
+            display: inline-block;
+            background: linear-gradient(135deg, #3fb950 0%, #2d8a3e 100%);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin-bottom: 18px;
+        }
+        
+        .info-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 14px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .info-label {
+            font-size: 13px;
+            color: #aaaaaa;
+            margin-bottom: 6px;
+        }
+        
+        .info-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #58a6ff;
+        }
+        
+        .motd-section {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 16px;
+            border-radius: 10px;
+            border-left: 4px solid #58a6ff;
+            margin-bottom: 16px;
+        }
+        
+        .motd-title {
+            font-size: 13px;
+            color: #aaaaaa;
+            margin-bottom: 8px;
+        }
+        
+        .motd-text {
+            font-size: 15px;
+            line-height: 1.5;
+            color: #ebebeb;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .players-section {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 16px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .players-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .players-count {
+            font-size: 20px;
+            font-weight: bold;
+            color: #58a6ff;
+        }
+        
+        .players-label {
+            font-size: 14px;
+            color: #aaaaaa;
+        }
+        
+        .player-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }
+        
+        .player-tag {
+            background: rgba(88, 166, 255, 0.2);
+            color: #58a6ff;
+            padding: 5px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            border: 1px solid rgba(88, 166, 255, 0.3);
+        }
+        
+        .srv-notice {
+            background: rgba(163, 113, 247, 0.1);
+            border: 1px solid rgba(163, 113, 247, 0.3);
+            color: #a371f7;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-top: 16px;
+            font-size: 13px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="header">
+            <div class="server-icon">
+                {% if favicon_url -%}
+                <img src="{{ favicon_url }}" alt="Server Icon">
+                {%- else -%}
+                ⛏️
+                {%- endif %}
+            </div>
+            <div class="server-info">
+                <div class="server-title">
+                    {%- if srv_resolved and original_domain -%}
+                    {{ original_domain }}
+                    {%- else -%}
+                    {{ host }}:{{ port }}
+                    {%- endif -%}
+                </div>
+                <div class="badges">
+                    <span class="edition-badge">{{ edition }}</span>
+                    <span class="status-online">✓ 在线</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="info-grid">
+            <div class="info-item">
+                <div class="info-label">📡 延迟</div>
+                <div class="info-value">{{ latency_ms }} ms</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">💳 协议版本</div>
+                <div class="info-value">{{ protocol if protocol else '-' }}</div>
+            </div>
+            <div class="info-item">
+                <div class="info-label">🧰 游戏版本</div>
+                <div class="info-value">{{ version_name if version_name else '-' }}</div>
+            </div>
+        </div>
+        
+        {%- if motd %}
+        <div class="motd-section">
+            <div class="motd-title">📋 服务器描述 (MOTD)</div>
+            <div class="motd-text">{{ motd }}</div>
+        </div>
+        {%- endif %}
+        
+        <div class="players-section">
+            <div class="players-header">
+                <span style="font-size: 20px;">👥</span>
+                <span class="players-count">{{ players_online }} / {{ players_max }}</span>
+                <span class="players-label">玩家在线</span>
+            </div>
+            {%- if player_names and player_names|length > 0 %}
+            <div class="player-list">
+                {%- for player in player_names %}
+                <div class="player-tag">{{ player }}</div>
+                {%- endfor %}
+            </div>
+            {%- endif %}
+        </div>
+        
+        {%- if srv_resolved %}
+        <div class="srv-notice">
+            🔍 通过 SRV 记录解析: {{ host }}:{{ port }}
+        </div>
+        {%- endif %}
+    </div>
+</body>
+</html>

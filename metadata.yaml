@@ -1,5 +1,5 @@
 name: astrbot_plugin_minecraft_motd
 desc: 基于Astrbot的motd探测服务器的插件
-version: v1.7.0
+version: v2.0.0
 author: ChuranNeko
 repo: https://github.com/ChuranNeko/astrbot_plugin_minecraft_motd

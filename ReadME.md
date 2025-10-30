@@ -6,13 +6,13 @@
 
 ![Python Versions](https://img.shields.io/badge/python-3.8%20%7C%203.9%20%7C%203.10-blue)
 ![License](https://img.shields.io/github/license/ChuranNeko/astrbot_plugin_minecraft_motd)
-![Version](https://img.shields.io/badge/version-1.7.0-green)
+![Version](https://img.shields.io/badge/version-2.0.0-green)
 
 </div>
 
 ## 🌟 功能简介
 
-本插件为 **AstrBot** 提供 `/motd` 命令，可在本地主动探测指定 **Minecraft Java** 或 **Bedrock** 服务器（无需外部 HTTP API），获取状态信息（MOTD、在线状态、玩家人数、服务器图标等），并在本地渲染状态图片发送到聊天中。
+本插件为 **AstrBot** 提供 `/motd` 命令，可在本地主动探测指定 **Minecraft Java** 或 **Bedrock** 服务器（无需外部 HTTP API），获取状态信息（MOTD、在线状态、玩家人数、服务器图标等），并使用 **HTML 渲染技术**生成精美的状态卡片发送到聊天中。
 
 ### ✨ 主要特性
 
@@ -22,8 +22,9 @@
 * **指定模式**：可强制指定探测 Java 版(`-je`)、基岩版(`-be`)或仅查询 SRV 记录(`-srv`)
 * **SRV 记录支持**：自动解析 `_minecraft._tcp.domain` SRV 记录
 * **高级网络支持**：支持 IPv4、IPv6、域名解析
-* **本地渲染**：美观的状态卡片，支持服务器图标显示
+* **HTML 渲染**：使用 AstrBot HTML 渲染引擎生成精美卡片，支持服务器图标显示
 * **异步并发**：高性能的并发探测，提升响应速度
+* **现代化界面**：采用响应式设计，支持动画效果和渐变配色
 
 ---
 
@@ -34,14 +35,14 @@
 ```txt
 validators>=0.35.0
 mcstatus>=11.0.0
-Pillow>=10.3.0
-requests>=2.25.0
 dnspython>=2.3.0
 ```
 
+> **v2.0.0 更新说明**：移除了 `Pillow` 和 `requests` 依赖，改用 AstrBot 内置的 HTML 渲染引擎，大幅提升渲染质量和性能。
+
 ---
 
-**字体文件**：插件包含 `font/Minecraft_AE.ttf` 字体文件，确保跨平台兼容性和 Minecraft 主题一致性。
+**字体文件**：插件包含 `font/Minecraft_AE.ttf` 字体文件，通过 HTML 模板引用，确保跨平台兼容性和 Minecraft 主题一致性。
 
 ---
 
@@ -165,9 +166,12 @@ pip install -r requirements.txt
 
 ### 🎨 视觉体验优化
 
+* **HTML 渲染引擎**：使用 AstrBot 内置的浏览器渲染技术，生成高质量图片
+* **现代化设计**：采用渐变配色、圆角卡片、阴影效果等现代 UI 元素
+* **动画效果**：在线状态指示器支持呼吸灯动画
 * **原生字体**：内置 Minecraft 官方字体，保持风格一致
-* **自动图标**：智能获取服务器 favicon，失败时使用默认 logo
-* **响应式布局**：自适应文本折行，支持多行 MOTD 显示
+* **自动图标**：智能获取服务器 favicon，失败时显示默认 emoji 图标
+* **响应式布局**：基于 Flexbox/Grid 的响应式布局，完美展示各类信息
 * **颜色码清理**：自动去除 Minecraft 颜色码，保持文本清洁
 
 ---
